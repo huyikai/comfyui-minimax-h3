@@ -1,0 +1,34 @@
+From 998282c393bd98aa4333aaff2951f6cf10b50c69 Mon Sep 17 00:00:00 2001
+From: huyikai <hyk_tiger@foxmail.com>
+Date: Sun, 16 Aug 2026 21:48:26 +0800
+Subject: [PATCH] Ignore Windows EINVAL when flushing intercepted
+ stdout/stderr.
+
+tqdm progress bars call stderr.flush() and can crash sampling after a long-lived console handle goes invalid.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+---
+ app/logger.py | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/app/logger.py b/app/logger.py
+index fe82c40..9377d99 100644
+--- a/app/logger.py
++++ b/app/logger.py
+@@ -70,7 +70,12 @@ class LogInterceptor(io.TextIOWrapper):
+         super().write(data)
+ 
+     def flush(self):
+-        super().flush()
++        try:
++            super().flush()
++        except (OSError, ValueError):
++            # Windows console/piped streams can raise EINVAL (errno 22) on flush
++            # even after write() succeeded. Ignore so tqdm/logging cannot crash sampling.
++            pass
+         for cb in self._flush_callbacks:
+             cb(self._logs_since_flush)
+             self._logs_since_flush = []
+-- 
+2.55.0.windows.3
+

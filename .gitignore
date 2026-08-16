@@ -1,0 +1,43 @@
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ComfyUI：单独克隆，不进本仓库
+ComfyUI/
+
+# 模型权重与缓存
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.onnx
+*.gguf
+*.whl
+*.cache/
+
+# 运行产物
+logs/
+output/
+temp/
+*.log
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
+
+# Cursor
+.cursor/
