@@ -1,7 +1,7 @@
-﻿diff --git a/app/logger.py b/app/logger.py
+diff --git a/app/logger.py b/app/logger.py
 --- a/app/logger.py
 +++ b/app/logger.py
-@@ -64,13 +64,23 @@ class LogInterceptor(io.TextIOWrapper):
+@@ -64,10 +64,16 @@ class LogInterceptor(io.TextIOWrapper):
  
              # Simple handling for cr to overwrite the last output if it isnt a full line
              # else logs just get full of progress messages
@@ -18,13 +18,3 @@
 +            return len(data) if isinstance(data, str) else 0
  
      def flush(self):
--        super().flush()
-+        try:
-+            super().flush()
-+        except (OSError, ValueError):
-+            # Windows console/piped streams can raise EINVAL (errno 22) on flush
-+            # even after write() succeeded. Ignore so tqdm/logging cannot crash sampling.
-+            pass
-         for cb in self._flush_callbacks:
-             cb(self._logs_since_flush)
-             self._logs_since_flush = []

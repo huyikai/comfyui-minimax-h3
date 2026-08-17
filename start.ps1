@@ -30,15 +30,19 @@ if (-not (Test-Path $TurboNode)) {
     }
 }
 
-# ComfyUI is a separate clone. Re-apply the Windows logger flush workaround if missing.
+# ComfyUI is a separate clone. Re-apply the Windows logger workaround if missing.
 $Logger = Join-Path $Comfy "app\logger.py"
 $Patch = Join-Path $Root "patches\comfyui-logger-flush-windows.patch"
+$WritePatch = Join-Path $Root "patches\comfyui-logger-write-windows.patch"
 if ((Test-Path $Logger) -and (Test-Path $Patch)) {
-    $patched = Select-String -LiteralPath $Logger -Pattern "except \(OSError, ValueError\):" -Quiet
-    if (-not $patched) {
+    $writeGuarded = Select-String -LiteralPath $Logger -SimpleMatch 'especially tqdm' -Quiet
+    if (-not $writeGuarded) {
         git -C $Comfy apply --whitespace=nowarn $Patch
+        if ($LASTEXITCODE -ne 0 -and (Test-Path $WritePatch)) {
+            git -C $Comfy apply --whitespace=nowarn $WritePatch
+        }
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "Warning: failed to apply patches\comfyui-logger-flush-windows.patch"
+            Write-Host "Warning: failed to apply Windows logger patches"
         }
     }
 }
