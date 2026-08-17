@@ -9,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent / "ComfyUI" / "models"
 PRIMARY = "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main"
 MIRROR = "https://hf-mirror.com/Comfy-Org/MiniMax-H3/resolve/main"
+TURBO_PRIMARY = "https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora/resolve/main"
+TURBO_MIRROR = "https://hf-mirror.com/larryvrh/MiniMax-H3-Turbo-Lora/resolve/main"
 CURL = "curl.exe" if sys.platform == "win32" else "curl"
 # Smallest first so a broken link fails quickly.
 FILES = [
@@ -18,6 +20,8 @@ FILES = [
     "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
 ]
 REF2VA = "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors"
+TURBO_LORA = "loras/minimax_h3_turbo_v4_step600_ema.safetensors"
+TURBO_FILE = "minimax_h3_turbo_v4_step600_ema.safetensors"
 
 
 def curl_get(url: str, dest: Path) -> int:
@@ -42,17 +46,18 @@ def curl_get(url: str, dest: Path) -> int:
     return subprocess.call(cmd)
 
 
-def download(rel: str) -> None:
+def download(rel: str, urls: list[str] | None = None) -> None:
     dest = ROOT / rel
     if dest.exists() and dest.stat().st_size > 1_000_000:
         print(f"skip existing {rel} ({dest.stat().st_size / 1e9:.2f} GB)", flush=True)
         return
-    for base in (PRIMARY, MIRROR):
-        code = curl_get(f"{base}/{rel}", dest)
+    candidates = urls or [f"{PRIMARY}/{rel}", f"{MIRROR}/{rel}"]
+    for url in candidates:
+        code = curl_get(url, dest)
         if code == 0 and dest.exists() and dest.stat().st_size > 1_000_000:
             print(f"done {rel} ({dest.stat().st_size / 1e9:.2f} GB)", flush=True)
             return
-        print(f"curl exit {code} from {base}", flush=True)
+        print(f"curl exit {code} from {url}", flush=True)
     raise SystemExit(f"failed to download {rel}")
 
 
@@ -62,6 +67,14 @@ def main() -> None:
         files.append(REF2VA)
     for rel in files:
         download(rel)
+    if "--turbo" in sys.argv:
+        download(
+            TURBO_LORA,
+            [
+                f"{TURBO_PRIMARY}/{TURBO_FILE}",
+                f"{TURBO_MIRROR}/{TURBO_FILE}",
+            ],
+        )
     print("all requested weights ready", flush=True)
 
 

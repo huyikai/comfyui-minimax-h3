@@ -8,7 +8,7 @@
 
 | 路径 | 说明 |
 | --- | --- |
-| `workflows/` | MiniMax H3 工作流（文生、图生、首尾帧、参考生视频，以及 8GB 显存用的文生模板） |
+| `workflows/` | MiniMax H3 工作流（文生、图生、首尾帧、参考生视频、8GB 文生，以及文生/图生 Turbo） |
 | `download_models.py` | 断点续传下载官方剪枝 INT8 权重；国内可走 Hugging Face 镜像 |
 | `start.ps1` | Windows 启动脚本：检查权重后用 SageAttention 拉起 ComfyUI |
 
@@ -23,7 +23,9 @@
 - 较新的 [ComfyUI](https://github.com/comfyanonymous/ComfyUI)（需已内置 MiniMax H3 节点）
 - SageAttention（`start.ps1` 会加上 `--use-sage-attention`）
 
-16GB 及以上显存可以按官方默认分辨率跑。8GB 建议先用 `video_minimax_h3_t2v_8gb.json`。
+16GB 及以上显存可以按官方默认分辨率跑。8GB 建议先用 `video_minimax_h3_t2v_8gb.json`，或文生 Turbo 工作流（6 步，`low_vram` 已打开）。
+
+FL2VA 工作流（文生、图生、首尾帧）的子图节点上可以直接改 **steps**。Turbo 图默认 6 步，建议保持 4～8。
 
 ## 快速开始
 
@@ -53,6 +55,12 @@ python -m venv .venv
 .\.venv\Scripts\python.exe download_models.py --ref2va
 ```
 
+文生 / 图生 Turbo 还需要加速 LoRA（约 0.7GB）和自定义节点（`start.ps1` 会在缺节点时自动克隆）：
+
+```powershell
+.\.venv\Scripts\python.exe download_models.py --turbo
+```
+
 `download_models.py` 会先请求 Hugging Face 官方，失败则改走 `hf-mirror.com`。已存在且大于 1MB 的文件会跳过，支持断点续传。
 
 ## 工作流
@@ -60,9 +68,11 @@ python -m venv .venv
 | 文件 | 用途 | 需要的扩散模型 |
 | --- | --- | --- |
 | `video_minimax_h3_t2v.json` | 文生视频 | FL2VA |
-| `video_minimax_h3_t2v_8gb.json` | 文生视频（8GB 显存，更低分辨率） | FL2VA |
+| `video_minimax_h3_t2v_8gb.json` | 文生视频（8GB 显存） | FL2VA |
+| `video_minimax_h3_t2v_turbo.json` | 文生视频 + Turbo LoRA（默认 6 步） | FL2VA + Turbo LoRA |
 | `video_minimax_h3_i2v.json` | 图生视频（首帧） | FL2VA |
 | `video_minimax_h3_i2v_easycache.json` | 图生视频 + EasyCache | FL2VA |
+| `video_minimax_h3_i2v_turbo.json` | 图生视频 + Turbo LoRA（默认 6 步） | FL2VA + Turbo LoRA |
 | `video_minimax_h3_flf.json` | 首尾帧生视频 | FL2VA |
 | `video_minimax_h3_r2v.json` | 参考生视频（图 / 视频 / 音频） | Ref2VA |
 | `video_minimax_h3_r2v_video.json` | 参考生视频（偏视频参考） | Ref2VA |
@@ -80,6 +90,8 @@ ComfyUI/models/
 │   └── minimax_h3_audio_vae_fp32.safetensors
 ├── text_encoders/
 │   └── qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+├── loras/
+│   └── minimax_h3_turbo_v4_step600_ema.safetensors   # 可选，--turbo
 └── diffusion_models/
     ├── minimax_h3_fl2va_pruned_int8_convrot.safetensors
     └── minimax_h3_ref2va_pruned_int8_convrot.safetensors   # 可选，--ref2va

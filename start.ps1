@@ -20,6 +20,16 @@ if ($missing.Count -gt 0) {
     throw "MiniMax H3 FL2VA weights are not complete."
 }
 
+$TurboNode = Join-Path $Comfy "custom_nodes\ComfyUI-MiniMax-H3-Turbo"
+if (-not (Test-Path $TurboNode)) {
+    Write-Host "Cloning MiniMax-H3 Turbo custom node..."
+    New-Item -ItemType Directory -Force -Path (Join-Path $Comfy "custom_nodes") | Out-Null
+    git clone --depth 1 https://github.com/larryvrh/ComfyUI-MiniMax-H3-Turbo.git $TurboNode
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Warning: failed to clone ComfyUI-MiniMax-H3-Turbo. Turbo workflows need this node."
+    }
+}
+
 # ComfyUI is a separate clone. Re-apply the Windows logger flush workaround if missing.
 $Logger = Join-Path $Comfy "app\logger.py"
 $Patch = Join-Path $Root "patches\comfyui-logger-flush-windows.patch"

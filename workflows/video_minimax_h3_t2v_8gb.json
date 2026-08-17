@@ -2,7 +2,7 @@
   "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
   "revision": 0,
   "last_node_id": 118,
-  "last_link_id": 227,
+  "last_link_id": 228,
   "nodes": [
     {
       "id": 92,
@@ -89,7 +89,7 @@
       ],
       "size": [
         480,
-        630
+        670
       ],
       "flags": {},
       "order": 4,
@@ -133,6 +133,15 @@
           "link": null
         },
         {
+          "label": "steps",
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
           "label": "audio_vae",
           "name": "vae_name_1",
           "type": "COMBO",
@@ -159,6 +168,7 @@
         1344,
         768,
         5,
+        15,
         556589502035082,
         "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
         "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
@@ -185,7 +195,7 @@
       "title": "Note: MiniMax H3",
       "properties": {},
       "widgets_values": [
-        "## MiniMax H3\n\n[MiniMax H3](https://www.minimax.io/blog/minimax-h3) is MiniMax's general-purpose, omni-modal generation model. It jointly understands text, image, video, and audio, and generates video with **native stereo audio**: voice, sound effects, and music are modeled jointly in a single forward pass, not layered on afterward. Output is up to 2K resolution, 24fps, and up to about 15 seconds.\n\n## ComfyUI links\n- [ComfyUI#15224](https://github.com/Comfy-Org/ComfyUI/pull/15224)\n- [🤗 Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3)\n\n## About this workflow\n\n**Key inputs**\n\n- **prompt**: describe the shots, camera moves, and the accompanying audio (dialogue, SFX, music) in one block\n- **width / height**: set via Resolution Selector. H3's native canvas is a 768px short edge, capped at 768x1344 pixels, rounded to a multiple of 32\n- **duration (seconds)**: converted to a valid frame `length` by the Math Expression node, snapping up to the model's 17-frame-per-block (17k+5) grid at 24fps\n"
+        "## MiniMax H3\n\n[MiniMax H3](https://www.minimax.io/blog/minimax-h3) is MiniMax's general-purpose, omni-modal generation model. It jointly understands text, image, video, and audio, and generates video with **native stereo audio**: voice, sound effects, and music are modeled jointly in a single forward pass, not layered on afterward. Output is up to 2K resolution, 24fps, and up to about 15 seconds.\n\n## ComfyUI links\n- [ComfyUI#15224](https://github.com/Comfy-Org/ComfyUI/pull/15224)\n- [🤗 Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3)\n\n## About this workflow\n\n**Key inputs**\n\n- **prompt**: describe the shots, camera moves, and the accompanying audio (dialogue, SFX, music) in one block\n- **width / height**: set via Resolution Selector. H3's native canvas is a 768px short edge, capped at 768x1344 pixels, rounded to a multiple of 32\n- **duration (seconds)**: converted to a valid frame `length` by the Math Expression node, snapping up to the model's 17-frame-per-block (17k+5) grid at 24fps\n- **steps**: sampling steps on the subgraph node (default 20; 8GB template 15). Open the subgraph if you also need to change the sampler or scheduler\n"
       ],
       "color": "#222",
       "bgcolor": "#000"
@@ -274,7 +284,7 @@
         "state": {
           "lastGroupId": 4,
           "lastNodeId": 118,
-          "lastLinkId": 227,
+          "lastLinkId": 228,
           "lastRerouteId": 0
         },
         "revision": 0,
@@ -286,7 +296,7 @@
             -2560,
             4720,
             128,
-            268
+            288
           ]
         },
         "outputNode": {
@@ -373,6 +383,19 @@
             ]
           },
           {
+            "id": "c8e1a4b2-7d3f-4a91-9e2c-1f6b0d8a5c73",
+            "name": "steps",
+            "type": "INT",
+            "linkIds": [
+              228
+            ],
+            "label": "steps",
+            "pos": [
+              -2456,
+              4864
+            ]
+          },
+          {
             "id": "9f8734bc-c2b3-43b0-911e-e89560e8b777",
             "name": "noise_seed",
             "type": "INT",
@@ -381,7 +404,7 @@
             ],
             "pos": [
               -2456,
-              4864
+              4884
             ]
           },
           {
@@ -393,7 +416,7 @@
             ],
             "pos": [
               -2456,
-              4884
+              4904
             ]
           },
           {
@@ -405,7 +428,7 @@
             ],
             "pos": [
               -2456,
-              4904
+              4924
             ]
           },
           {
@@ -417,7 +440,7 @@
             ],
             "pos": [
               -2456,
-              4924
+              4944
             ]
           },
           {
@@ -430,7 +453,7 @@
             "label": "audio_vae",
             "pos": [
               -2456,
-              4944
+              4964
             ]
           }
         ],
@@ -692,6 +715,15 @@
                 "name": "model",
                 "type": "MODEL",
                 "link": 5
+              },
+              {
+                "localized_name": "steps",
+                "name": "steps",
+                "type": "INT",
+                "widget": {
+                  "name": "steps"
+                },
+                "link": 228
               }
             ],
             "outputs": [
@@ -1466,7 +1498,7 @@
           {
             "id": 207,
             "origin_id": -10,
-            "origin_slot": 6,
+            "origin_slot": 7,
             "target_id": 15,
             "target_slot": 0,
             "type": "INT"
@@ -1474,7 +1506,7 @@
           {
             "id": 221,
             "origin_id": -10,
-            "origin_slot": 7,
+            "origin_slot": 8,
             "target_id": 6,
             "target_slot": 0,
             "type": "COMBO"
@@ -1482,7 +1514,7 @@
           {
             "id": 223,
             "origin_id": -10,
-            "origin_slot": 9,
+            "origin_slot": 10,
             "target_id": 11,
             "target_slot": 0,
             "type": "COMBO"
@@ -1490,7 +1522,7 @@
           {
             "id": 224,
             "origin_id": -10,
-            "origin_slot": 10,
+            "origin_slot": 11,
             "target_id": 24,
             "target_slot": 0,
             "type": "COMBO"
@@ -1514,10 +1546,18 @@
           {
             "id": 227,
             "origin_id": -10,
-            "origin_slot": 8,
+            "origin_slot": 9,
             "target_id": 13,
             "target_slot": 0,
             "type": "COMBO"
+          },
+          {
+            "id": 228,
+            "origin_id": -10,
+            "origin_slot": 6,
+            "target_id": 9,
+            "target_slot": 1,
+            "type": "INT"
           }
         ],
         "extra": {}
