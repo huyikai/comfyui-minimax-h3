@@ -48,4 +48,4 @@ if ((Test-Path $Logger) -and (Test-Path $Patch)) {
 }
 
 Set-Location $Comfy
-& $Python main.py --use-sage-attention --disable-pinned-memory --preview-method auto
+& $Python main.py --use-sage-attention --disable-pinned-memory --preview-method none
