@@ -10,7 +10,7 @@ alwaysApply: true
 ```text
 .scratch/人间隙-04-懦弱/
   probe.json  scene.txt  ocr.txt
-  frames/  qc/
+  frames/  qc/  source/
 ```
 
 ## 硬性约束
@@ -23,15 +23,16 @@ alwaysApply: true
 
 | 命令 | 干什么 |
 | --- | --- |
-| `tools\read_source.py <片> --work 人间隙/NN-名 --ocr` | 探时长、找硬切、按秒抽帧、OCR 出屏幕字时间线 |
+| `tools\read_source.py <片> --work 人间隙/NN-名 --ocr` | 只做机械抽帧/硬切/OCR（默认 1 秒）。写稿读片请用下一行 |
+| `tools\source_agent.py <片> --work 人间隙/NN-名` | 0.5 秒抽帧 + OCR + 转写 + SDK 按窗读图，出 `source/timeline.json` |
 | `tools\qc_frames.py --dir <分片目录> --work 人间隙/NN-名` | 每条 clip 抽三帧拼一张横条，逐段自检用 |
 | `tools\qc_frames.py <成片> --work 人间隙/NN-名 --at 1.2,4 --tail` | 成片抽检帧 |
+| `tools\qc_agent.py --work 人间隙/NN-名` | 分片横条的 SDK 初筛 |
 
 ```powershell
-.\.venv\Scripts\python.exe tools\read_source.py `
-  "D:\develop\video-script\人间隙\04-懦弱\原片.mp4" --work "人间隙/04-懦弱" --ocr
+    .\.venv\Scripts\python.exe tools\source_agent.py 原片.mp4 --work "人间隙/NN-名"
 ```
 
 ## 结论落库，过程不落库
 
-切点、对白、屏幕字时间线这些**结论**要写进 video-script 那边的 `00-overview.md`。帧、裁切块、OCR 缓存是过程，随时能从 `原片.mp4` 重算，不要留、更不要提交。
+切点、对白、屏幕字时间线这些**结论**要写进 video-script 那边的 `00-overview.md`。帧、横条、OCR/ASR 缓存是过程，随时能从 `原片.mp4` 重算，不要留、更不要提交。写稿以 `source/timeline.json` 为读片结论，不要通读 `frames/`。

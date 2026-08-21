@@ -14,7 +14,7 @@ disable-model-invocation: true
 
 ```text
 - [ ] 1 取材：下片、下原封面、探时长
-- [ ] 2 读片：切点、对白、屏幕字时间线
+- [ ] 2 读片：source_agent 出时间线（切点 / OCR / ASR / 按窗画面）
 - [ ] 3 写稿落库到 video-script
 - [ ] 4 precheck
 - [ ] 4.5 故事逻辑审读（子 agent 通读，生成前）
@@ -45,12 +45,14 @@ yt-dlp --write-all-thumbnails --skip-download <链接>   # 只留 id 为 cover �
 ## 2 读片
 
 ```powershell
-.\.venv\Scripts\python.exe tools\read_source.py 原片.mp4 --work "人间隙/NN-作品" --ocr
+.\.venv\Scripts\python.exe tools\source_agent.py 原片.mp4 --work "人间隙/NN-作品"
 ```
 
-出 `probe.json`、`scene.txt`（硬切点）、`frames/`、`ocr.txt`（逐秒屏幕字时间线）。小字认不全时加 `--regions` 分区放大重认。
+它会 0.5 秒抽帧、OCR、转写人声，再按 3 秒窗把六帧拼成横条交给 SDK。产物在 `.scratch/<作品>/source/timeline.json` 和 `timeline.md`。
 
-`ocr.txt` 要读出两件事：每句对白的起止秒、**解释性标题什么时候出、什么时候消失**。后者决定黄字挂多久，别默认全程挂着。
+**主对话不要通读 `frames/`。** 写稿读 ticks；只打开 `timeline.md`「必须开图」里的横条，以及拟拆段之后每段 2–3 张人最清楚的帧（写外观锁）。附录的看不清、「有对白嘴未动」不必开图——后者当画外音提示。说话人按台词内容判，不要按这一窗画面上是谁。
+
+`timeline.md` 要读出：每句对白的起止（OCR 有字时以 OCR 为准，无字幕才看 ASR）、**解释性标题什么时候出、什么时候消失**、每一窗入画几人、谁的嘴在动。黄字别默认全程挂着。
 
 ## 3 写稿落库
 
@@ -236,7 +238,7 @@ yt-dlp --write-all-thumbnails --skip-download <链接>   # 只留 id 为 cover �
 ```text
 按 D:\develop\video-script\README.md 和 .cursor\skills\writing-h3-replica-scripts\SKILL.md 复刻这条链接：<链接>
 落库到 D:\develop\video-script\人间隙\<NN-作品名>\，骨架和命名照那两份文档。
-先用 D:\develop\minmaxH3\tools\read_source.py 探时长、找硬切、OCR 屏幕字时间线，再拆段写稿。
+先用 D:\develop\minmaxH3\tools\source_agent.py 出时间线（0.5 秒抽帧 + OCR + 转写 + SDK 按窗读图），再按 .scratch/<作品>/source/timeline.json 拆段写稿。不要通读 frames/。说话人按台词内容判，不要按画面上是谁。
 拆段按事件不按刀数；单条时长按这一拍的实际长度写，不足 4 秒写 4.00。
 写完自己跑一遍 tools\precheck.py --work "人间隙/<NN-作品名>"，把 [FAIL] 改干净。
 回报：落了哪几段、每段几条、precheck 最后的结果、你拿不准的地方。不要出图、不要渲染。

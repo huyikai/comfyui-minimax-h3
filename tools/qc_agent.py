@@ -20,6 +20,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from cursor_sdk_util import (  # noqa: E402
+    model_selection,
+    prompt_with_retry,
+    run_tag,
+    tokens_of,
+)
 from scratch import scratch_dir  # noqa: E402
 
 SCRIPT_ROOT = Path(r"D:\develop\video-script")
@@ -29,7 +35,6 @@ VERDICT = re.compile(
     r"^\s*(人数|口型|内容|画面)\s*[:：]\s*(疑-点名|疑-拿不准|疑|过|无对白)\s*[—\-–]*\s*(.*)$"
 )
 SEEN = re.compile(r"^\s*(左|中|右)\s*[:：]\s*(.+)$")
-RETRIES = 3
 
 CRITERIA = """\
 **1 人数**：入画人数与该 clip 的「人数锁 / Identity lock」一致。画外音的人不占人数；
@@ -108,34 +113,6 @@ def duration_of(script: str) -> str:
     return m.group(1) if m else "未标注"
 
 
-def model_selection(model: str, params: list[str]):
-    """`--param effort=low` -> ModelSelection。不给 param 就用该模型的默认变体。"""
-    from cursor_sdk import ModelParameterValue, ModelSelection
-
-    if not params:
-        return model
-    vals = []
-    for p in params:
-        k, _, v = p.partition("=")
-        if not v:
-            raise SystemExit(f"--param 要写成 id=value，收到 {p!r}")
-        vals.append(ModelParameterValue(id=k.strip(), value=v.strip()))
-    return ModelSelection(id=model, params=tuple(vals))
-
-
-def run_tag(model: str, params: list[str]) -> str:
-    bits = [model] + [p.replace("=", "-") for p in sorted(params)]
-    return re.sub(r"[^\w.-]+", "_", "-".join(bits))
-
-
-def tokens_of(result) -> tuple[int, int] | None:
-    """本地 run 只报 TokenUsage，不报钱。返回 (输入, 输出)。"""
-    u = getattr(result, "usage", None)
-    if u is None:
-        return None
-    return getattr(u, "input_tokens", 0) or 0, getattr(u, "output_tokens", 0) or 0
-
-
 def parse_report(text: str) -> tuple[dict[str, tuple[str, str]], dict[str, str]]:
     out: dict[str, tuple[str, str]] = {}
     seen: dict[str, str] = {}
@@ -159,7 +136,7 @@ def unsure(verdicts: dict[str, tuple[str, str]]) -> list[str]:
 
 
 async def judge(client, model, strip: Path, work: str, sem, fallback=None) -> dict:
-    from cursor_sdk import AgentOptions, AsyncAgent, LocalAgentOptions, SDKImage, UserMessage
+    from cursor_sdk import SDKImage, UserMessage
 
     m = STRIP_RE.match(strip.stem)
     if not m:
@@ -172,39 +149,12 @@ async def judge(client, model, strip: Path, work: str, sem, fallback=None) -> di
     text = PROMPT.format(seconds=duration_of(script), criteria=CRITERIA, script=script)
     msg = UserMessage(text=text, images=[SDKImage.from_file(str(strip))])
 
-    def opts_for(m):
-        return AgentOptions(
-            model=m,
-            # plan 模式是只读的：agent 改不了脚本，「只筛不判」由运行时兜住。
-            mode="plan",
-            # 上下文全部内联给了，不加载 project 规则——省 token 也免得它照着
-            # finish-video 自作主张去改文件。
-            local=LocalAgentOptions(cwd=str(strip.parent)),
-        )
-
-    # 同一个模型重试只治瞬时故障。有些帧会被 provider 以内容安全为由拒掉
-    # （status=error，"The provider refused to serve this request based on the
-    # content"），那种拒绝是确定性的，重试多少次都一样，只能换模型。
-    plan = [(model, i) for i in range(RETRIES)]
-    if fallback:
-        plan.append((fallback, 0))
-
     async with sem:
-        result = last = used = None
-        for m, i in plan:
-            if i:
-                await asyncio.sleep(2 * i)
-            try:
-                result, used = await AsyncAgent.prompt(msg, opts_for(m), client=client), m
-                if result.status == "finished":
-                    break
-                last = f"run 状态 {result.status}"
-            except Exception as e:  # noqa: BLE001
-                last = f"{type(e).__name__}: {e}"
-        if result is None or result.status != "finished":
-            return {"seg": seg, "clip": clip,
-                    "error": f"{last}（{RETRIES} 次"
-                             + (f" + 兜底 {fallback}" if fallback else "") + "均失败）"}
+        result, used, err = await prompt_with_retry(
+            client, msg, model, fallback, str(strip.parent)
+        )
+    if err:
+        return {"seg": seg, "clip": clip, "error": err}
     tok = tokens_of(result)
     meta = {"tok_in": tok[0] if tok else None, "tok_out": tok[1] if tok else None,
             "ms": getattr(result, "duration_ms", None)}
@@ -215,7 +165,7 @@ async def judge(client, model, strip: Path, work: str, sem, fallback=None) -> di
 
 
 async def run(args) -> int:
-    from cursor_sdk import AgentOptions, AsyncClient
+    from cursor_sdk import AsyncClient
 
     strips_dir = args.dir or scratch_dir(args.work, "qc/clips")
     strips = sorted(Path(strips_dir).glob("*.jpg"))
