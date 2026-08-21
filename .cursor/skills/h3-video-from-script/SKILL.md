@@ -83,15 +83,33 @@ disable-model-invocation: true
 
 注意 `precheck.py` 和 `run_video_scripts.py` 都从 `SCRIPT_ROOT`（`D:\develop\video-script`）找 clip。骨架落在别处时，要么把 `--filter` 指向那边，要么临时改 `SCRIPT_ROOT`——**改了记得改回来**，别把通用用法的产物混进人间隙的脚本库。
 
+`[FAIL]` 全改完，`[WARN]` 逐条判断，再亲自读 `[SPEAK]` 表逐句核「这句话该由谁说」。
+
+## 5.5 故事逻辑审读
+
+`precheck` 只认格式，认不出「三十岁的人喊妈妈」为什么荒谬。**生成前**按段起子 agent 通读段总表和全部 clip，检查项和落笔分级照 `finish-video` 的「故事逻辑审读」「改还是问」两节走，子 agent 报的提示词见 [h3-replica-run](../h3-replica-run/SKILL.md) 第 4.5 步。
+
+用户自带的稿子逻辑漏洞通常比复刻稿多——**执行错误自己改，故事漏洞停下来问用户**，不要替他补设定。
+
 ## 6 生成与自检
+
+先渲分片、不合剪：
 
 ```powershell
 .\.venv\Scripts\python.exe run_video_scripts.py `
   --filter "<作品名>" --megapixels 0.4 `
   --output-dir "$HOME\Downloads\<作品名>-0.4" `
-  --concat-out "$HOME\Downloads\<作品名>-成片-0.4.mp4"
+  --concat-out "$HOME\Downloads\<作品名>-成片-0.4.mp4" --no-concat
 ```
 
-自检和迭代纪律照 `finish-video` 规则走：先定位原因再改，单条最多 5 轮，每轮记 `logs/qc-history/<作品名>.md`。没有源片可比对时，第 4 到 10 项按脚本写的意图判——脚本说这拍两个人，画面就得是两个人。
+逐段自检，每条 clip 一张横条：
+
+```powershell
+.\.venv\Scripts\python.exe tools\qc_frames.py --work "<作品名>" --dir "$HOME\Downloads\<作品名>-0.4"
+```
+
+每条都过了再把上面那条命令的 `--no-concat` 换成 `--concat-only` 合剪，然后查合剪层面的问题。
+
+自检和迭代纪律照 `finish-video` 规则走：分片级四项先过，再看合剪级；先定位原因再改，单条最多 5 轮，每轮记 `logs/qc-history/<作品名>.md`。没有源片可比对时，按脚本写的意图判——脚本说这拍两个人，画面就得是两个人。
 
 故障对照表复用 [h3-replica-run/troubleshooting.md](../h3-replica-run/troubleshooting.md)，「生成阶段」和「画面」两节通用。

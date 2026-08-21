@@ -24,6 +24,7 @@ alwaysApply: true
 | 命令 | 干什么 |
 | --- | --- |
 | `tools\read_source.py <片> --work 人间隙/NN-名 --ocr` | 探时长、找硬切、按秒抽帧、OCR 出屏幕字时间线 |
+| `tools\qc_frames.py --dir <分片目录> --work 人间隙/NN-名` | 每条 clip 抽三帧拼一张横条，逐段自检用 |
 | `tools\qc_frames.py <成片> --work 人间隙/NN-名 --at 1.2,4 --tail` | 成片抽检帧 |
 
 ```powershell
