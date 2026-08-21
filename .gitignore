@@ -30,6 +30,9 @@ output/
 temp/
 *.log
 
+# 中间物：抽帧、裁切、OCR 缓存、质检帧，一律进这里，做完可整目录删
+.scratch/
+
 # 系统 / 编辑器
 .DS_Store
 Thumbs.db
@@ -39,5 +42,6 @@ Desktop.ini
 *.swp
 *~
 
-# Cursor
-.cursor/
+# Cursor：规则要进版本库，只忽略本地缓存
+.cursor/*
+!.cursor/rules/

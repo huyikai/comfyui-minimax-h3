@@ -78,6 +78,10 @@ NOTIFIER = Notifier(enabled=False)
 # 越界原片字幕样式不跟愿违一套，按约定不生成 ASS。
 SUBS_SKIP_MARKERS = ("01-越界",)
 ASS_PLAY_RES = (1280, 720)
+# 黄字只在每个「过去 / 现在」块的第一条 clip 出，仿原片 2～3 秒后淡掉。
+ASS_TITLE_HOLD_SEC = 2.5
+ASS_TITLE_FAD_IN_MS = 200
+ASS_TITLE_FAD_OUT_MS = 600
 
 
 def log(msg: str) -> None:
@@ -492,7 +496,16 @@ def overview_path(clip: dict) -> Path:
     return clip["path"].parent / "00-overview.md"
 
 
-def extract_title(overview_text: str) -> str:
+def extract_title(overview_text: str, era: str = "") -> str:
+    if era == "过去":
+        m = re.search(r"解释性标题[^|\n]*过去[^|\n]*\|\s*`([^`]+)`", overview_text)
+        if m:
+            return m.group(1).strip()
+        return ""
+    if era == "现在":
+        m = re.search(r"解释性标题[^|\n]*现在[^|\n]*\|\s*`([^`]+)`", overview_text)
+        if m:
+            return m.group(1).strip()
     m = re.search(r"解释性标题[^|\n]*\|\s*`([^`]+)`", overview_text)
     if m:
         return m.group(1).strip()
@@ -503,11 +516,23 @@ def extract_title(overview_text: str) -> str:
 
 
 def clip_era(clip: dict, overview_text: str) -> str:
-    """过去 / 现在 / empty. 黄字标题只出现在「现在」这一拍。"""
+    """过去 / 现在 / empty. 黄字标题按段总表该拍的解释性标题出。"""
     for m in re.finditer(r"`(clip-\d+\.md)`[：:]\s*(过去|现在)", overview_text):
         if m.group(1) == clip["path"].name:
             return m.group(2)
     return ""
+
+
+def era_block_lead(clip: dict, overview_text: str) -> bool:
+    """该 clip 是否是本段某个「过去 / 现在」块的第一条。"""
+    target = clip["path"].name
+    prev = None
+    for m in re.finditer(r"`(clip-\d+\.md)`[：:]\s*(过去|现在)", overview_text):
+        name, era = m.group(1), m.group(2)
+        if name == target:
+            return prev != era
+        prev = era
+    return False
 
 
 def extract_dialogue_events(text: str) -> tuple[list[dict], list[str]]:
@@ -806,14 +831,14 @@ def render_ass(events: list[dict], video_duration: float | None) -> str:
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
         "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
         "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        # 对白：底部居中白字黑边，相对 1280×720 原片约 7.8% 底边距
-        "Style: Dialogue,Microsoft YaHei,40,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,"
-        "-1,0,0,0,100,100,0,0,1,2.4,0,2,40,40,56,1",
-        # 解释性标题：黄金字、更靠上，相对原片约 29% 底边距
-        "Style: Title,Microsoft YaHei,56,&H0000D7FF,&H000000FF,&H00000000,&H00000000,"
-        "-1,0,0,0,100,100,0,0,1,3.2,0,2,40,40,211,1",
-        # 片尾字卡：画面正中白字
-        "Style: EndCard,Microsoft YaHei,48,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,"
+        # 对白：底部居中白字黑边。字号按原片量的字宽（原片单字约占画高 5.3%）。
+        "Style: Dialogue,Microsoft YaHei,52,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,"
+        "-1,0,0,0,100,100,0,0,1,2.8,0,2,40,40,76,1",
+        # 解释性标题：黄字贴左上角，位置按原片量的 6% 左边距 / 14% 上边距。
+        "Style: Title,Microsoft YaHei,66,&H0000D7FF,&H000000FF,&H00000000,&H00000000,"
+        "-1,0,0,0,100,100,0,0,1,3.2,0,7,60,40,96,1",
+        # 片尾字卡：画面正中白字，字号按原片那张卡（单字约占画高 15%）收着放大。
+        "Style: EndCard,Microsoft YaHei,84,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,"
         "-1,0,0,0,100,100,0,0,1,2.4,0,5,40,40,0,1",
         "",
         "[Events]",
@@ -833,9 +858,10 @@ def render_ass(events: list[dict], video_duration: float | None) -> str:
             layer = 1
         elif ev["style"] == "EndCard":
             layer = 2
+        prefix = ev.get("ass_prefix") or ""
         lines.append(
             f"Dialogue: {layer},{ass_timestamp(start)},{ass_timestamp(end)},"
-            f"{ev['style']},,0,0,0,,{escape_ass(ev['text'])}"
+            f"{ev['style']},,0,0,0,,{prefix}{escape_ass(ev['text'])}"
         )
     lines.append("")
     return "\n".join(lines)
@@ -918,8 +944,20 @@ def run_clip_with_retries(template_holder: list, clip: dict, info: dict) -> Path
 
 
 def extract_end_card(text: str) -> str:
-    m = re.search(r"片尾字卡[\s\S]*?>\s*(.+)", text)
-    return m.group(1).strip() if m else ""
+    m = re.search(r"片尾字卡", text)
+    if not m:
+        return ""
+    lines: list[str] = []
+    for raw in text[m.end() :].splitlines():
+        s = raw.strip()
+        if s.startswith(">"):
+            body = s.lstrip(">").strip()
+            if body:
+                lines.append(body)
+        elif lines:
+            break
+    # 居中多行字卡上，行尾逗号会把那一行整体推左半个字，看着两行没对齐。
+    return "\n".join(re.sub(r"[，,、；;]+$", "", s) for s in lines)
 
 
 def clip_timeline_events(clip: dict, video_duration: float | None, video: Path | None = None) -> tuple[list[dict], list[str]]:
@@ -928,7 +966,7 @@ def clip_timeline_events(clip: dict, video_duration: float | None, video: Path |
     ov_path = overview_path(clip)
     ov_text = ov_path.read_text(encoding="utf-8") if ov_path.exists() else ""
     era = clip_era(clip, ov_text) if ov_text else ""
-    title = extract_title(ov_text) if ov_text else ""
+    title = extract_title(ov_text, era) if ov_text else ""
     limit = video_duration if video_duration and video_duration > 0 else float(clip["duration"])
     if not ov_path.exists():
         missing.append(f"同目录补 `{ov_path.name}`，并写「屏幕字」解释性标题和「分段文件」过去/现在")
@@ -954,8 +992,18 @@ def clip_timeline_events(clip: dict, video_duration: float | None, video: Path |
         if end <= start:
             continue
         out.append({**ev, "start": start, "end": end, "style": "Dialogue"})
-    if era == "现在" and title:
-        out.append({"text": title, "start": 0.0, "end": limit, "style": "Title"})
+    if era in ("过去", "现在") and title and era_block_lead(clip, ov_text):
+        hold = min(ASS_TITLE_HOLD_SEC, limit)
+        if hold > 0:
+            out.append(
+                {
+                    "text": title,
+                    "start": 0.0,
+                    "end": hold,
+                    "style": "Title",
+                    "ass_prefix": f"{{\\fad({ASS_TITLE_FAD_IN_MS},{ASS_TITLE_FAD_OUT_MS})}}",
+                }
+            )
     return out, missing
 
 
@@ -1418,7 +1466,14 @@ def concat_finished_clips(clips: list[dict], out_mp4: Path, reference: Path | No
     work_ov = clips[0]["path"].parent.parent / "00-overview.md"
     end_card = extract_end_card(work_ov.read_text(encoding="utf-8")) if work_ov.exists() else ""
     end_card_sec = 1.2
+    if end_card.count("\n") >= 1:
+        end_card_sec = 3.6
     if end_card:
+        # 最后一拍的黄字正好收在 offset 上，取整后会在片尾黑底的第一帧上闪一下。
+        tail = offset - 0.05
+        for ev in all_events:
+            if ev["end"] > tail:
+                ev["end"] = max(ev["start"], tail)
         all_events.append(
             {
                 "text": end_card,

@@ -1,0 +1,37 @@
+---
+description: 成片脚本一律落在 D:\develop\video-script，本仓库只负责生成
+alwaysApply: true
+---
+
+# 脚本库在另一个仓库
+
+`run_video_scripts.py` 的 `SCRIPT_ROOT` 固定指向 `D:\develop\video-script`。本仓库**不放**任何 clip 文案。
+
+## 写新脚本
+
+不管当前工作区是不是 video-script，写稿都按那边的规则来，不要另起一套：
+
+1. 先读 `D:\develop\video-script\README.md`（拆段、单条时长、防烧字幕、落盘骨架）
+2. 再读 `D:\develop\video-script\.cursor\skills\writing-h3-replica-scripts\SKILL.md`；英文三字段另读同目录 `h3-prompt-writing\SKILL.md`
+3. 按那边的骨架落盘：
+
+```text
+video-script\<账号>\<NN-作品>\
+  00-overview.md  发布.md  原封面.jpg
+  NN-段名\  00-overview.md  clip-XX.md  原片.mp4
+```
+
+`人间隙` 是发布号。**作品序号按本号发布顺序连排**（`04-懦弱` 是第 4 条），跟源视频出自哪个号无关；源号只写进该作品 `发布.md` 的「原案归档」。不要按源账号另开顶层目录。
+
+## 生成时
+
+`--filter` 用脚本库里的相对路径，`--output-dir` 用 `<账号>-<NN-作品>`，两边对齐：
+
+```powershell
+.\.venv\Scripts\python.exe run_video_scripts.py `
+  --filter "人间隙/04-懦弱" --megapixels 0.4 `
+  --output-dir "$HOME\Downloads\人间隙-04-懦弱" `
+  --concat-out "$HOME\Downloads\人间隙-04-懦弱-成片.mp4"
+```
+
+改了脚本库的目录名，Downloads 下的产物目录要一起改，否则 `--concat-only` 找不到已渲染的 mp4。
