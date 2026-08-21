@@ -42,6 +42,7 @@ Desktop.ini
 *.swp
 *~
 
-# Cursor：规则要进版本库，只忽略本地缓存
+# Cursor：规则和技能要进版本库，只忽略本地缓存
 .cursor/*
 !.cursor/rules/
+!.cursor/skills/
