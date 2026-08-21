@@ -1635,6 +1635,11 @@ def parse_args(argv: list[str] | None = None):
         help="Final concatenated mp4 path. Default: Downloads/<filter-name>-成片.mp4",
     )
     p.add_argument(
+        "--no-concat",
+        action="store_true",
+        help="Render the clips and stop, so they can be checked before spending a concat on them.",
+    )
+    p.add_argument(
         "--fresh",
         action="store_true",
         help="Re-render every clip instead of reusing matching mp4s from a previous run.",
@@ -1762,6 +1767,20 @@ def main(argv: list[str] | None = None) -> int:
             NOTIFIER.run_incomplete(missing)
             return 1
         log("[DONE] all clips processed")
+        if args.no_concat:
+            log(f"[SKIP-CONCAT] {len(clips)} 条已渲染，先逐段自检再合剪")
+            NOTIFIER.post(
+                f"{NOTIFIER.label} {len(clips)} 条渲染完 · 未合剪",
+                "\n".join(
+                    [
+                        f"分片目录：{dest_dir}",
+                        "逐段自检通过后再 --concat-only 合剪。",
+                        "",
+                        f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    ]
+                ),
+            )
+            return 0
         log(f"[CONCAT] {len(clips)} clips -> {out_mp4}")
         concat_finished_clips(clips, out_mp4, args.reference)
         return 0
