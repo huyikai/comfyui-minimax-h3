@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import re
 import shutil
@@ -21,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from notify import Notifier
+from notify import SMTP_FILE, Notifier
 
 ROOT = Path(__file__).resolve().parent
 COMFY = ROOT / "ComfyUI"
@@ -32,6 +33,10 @@ BASE_URL = "http://127.0.0.1:8188"
 LOG_DIR = ROOT / "logs"
 PROGRESS_PATH = LOG_DIR / "video_script_progress.json"
 RUN_LOG = LOG_DIR / "video_script_run.log"
+LOCK_PATH = LOG_DIR / "run.lock"
+DISK_WARN_BYTES = 10 * 1024 * 1024 * 1024
+DISK_BLOCK_BYTES = 2 * 1024 * 1024 * 1024
+PREFLIGHT_WARNINGS: list[str] = []
 # Optional {"<filter>": "<path to the reference cut>"} for the loudness / width
 # comparison printed after each concat.
 REFERENCE_FILE = LOG_DIR / "reference.json"
@@ -90,6 +95,131 @@ def log(msg: str) -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     with RUN_LOG.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
+
+
+def pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def acquire_run_lock() -> None:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    if LOCK_PATH.exists():
+        try:
+            data = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            data = {}
+        old = data.get("pid")
+        if isinstance(old, int) and old != os.getpid() and pid_alive(old):
+            when = data.get("at") or "?"
+            raise SystemExit(f"已有任务在跑 pid={old}（{when}）。同一时间只能有一份 run_video_scripts。")
+        if old:
+            log(f"[LOCK] 清了僵尸锁 pid={old}")
+    LOCK_PATH.write_text(
+        json.dumps(
+            {"pid": os.getpid(), "at": datetime.now().isoformat(timespec="seconds"), "argv": sys.argv[1:]},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
+def release_run_lock() -> None:
+    if not LOCK_PATH.exists():
+        return
+    try:
+        data = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return
+    if data.get("pid") == os.getpid():
+        LOCK_PATH.unlink(missing_ok=True)
+
+
+def sleep_timeouts() -> tuple[int | None, int | None]:
+    """接通电源 / 电池的待机秒数。0 = 从不。读不到则 (None, None)。"""
+    if sys.platform != "win32":
+        return None, None
+    try:
+        r = subprocess.run(
+            ["powercfg", "/getactivescheme"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        guid = None
+        for part in r.stdout.replace("{", " ").replace("}", " ").split():
+            if len(part) == 36 and part.count("-") == 4:
+                guid = part
+                break
+        if not guid:
+            return None, None
+        q = subprocess.run(
+            ["powercfg", "/q", guid, "SUB_SLEEP", "STANDBYIDLE"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        ac = dc = None
+        for line in q.stdout.splitlines():
+            s = line.strip()
+            if re.search(r"(Current AC Power Setting Index|当前交流电源设置索引)", s):
+                ac = int(s.rsplit(":", 1)[-1].strip(), 16)
+            elif re.search(r"(Current DC Power Setting Index|当前直流电源设置索引)", s):
+                dc = int(s.rsplit(":", 1)[-1].strip(), 16)
+        return ac, dc
+    except Exception:
+        return None, None
+
+
+def collect_preflight(args) -> list[str]:
+    """硬挡：磁盘 < 2GB、需要 GPU 时 ComfyUI 起不来。警告进开始邮件。"""
+    target = (args.output_dir or Path.home() / "Downloads").expanduser()
+    target.mkdir(parents=True, exist_ok=True)
+    free = shutil.disk_usage(target).free
+    if free < DISK_BLOCK_BYTES:
+        raise SystemExit(f"磁盘剩余 {free / (1024 ** 3):.1f} GB，低于 2 GB，停下。")
+    warns: list[str] = []
+    if free < DISK_WARN_BYTES:
+        warns.append(f"磁盘剩余 {free / (1024 ** 3):.1f} GB，低于 10 GB")
+    ac, dc = sleep_timeouts()
+    bits = []
+    if ac:
+        bits.append(f"接通 {ac} 秒")
+    if dc:
+        bits.append(f"电池 {dc} 秒")
+    if bits:
+        warns.append("电源计划会睡眠（" + " / ".join(bits) + "），过夜可能被冻死，请改成从不")
+    if not args.no_notify and not SMTP_FILE.exists():
+        warns.append("没有 logs/smtp.json，进度邮件发不出")
+    if not args.concat_only:
+        if not comfy_up():
+            log("[PREFLIGHT] ComfyUI 没起来，正在启动")
+            try:
+                restart_comfy()
+            except Exception as e:
+                raise SystemExit(f"ComfyUI 连不上：{e}") from e
+        if not comfy_up():
+            raise SystemExit("ComfyUI 连不上，停下。")
+    for w in warns:
+        log(f"[PREFLIGHT] {w}")
+    return warns
 
 
 def http_json(method: str, path: str, body=None, timeout: int = 30):
@@ -265,6 +395,14 @@ def reusable_output(clip: dict, progress: dict) -> Path | None:
 
 def run_key(filter_text: str) -> str:
     return filter_text.replace("\\", "/") or "*"
+
+
+def drop_filtered(done: dict) -> dict:
+    """--fresh 只清当前过滤范围内的进度，别把别的作品也抹了。"""
+    if not CLIP_FILTER:
+        return {}
+    needle = CLIP_FILTER.replace("\\", "/")
+    return {k: v for k, v in done.items() if needle not in k}
 
 
 def remember_run(progress: dict, args) -> None:
@@ -1619,6 +1757,17 @@ def concat_finished_clips(clips: list[dict], out_mp4: Path, reference: Path | No
 def parse_args(argv: list[str] | None = None):
     p = argparse.ArgumentParser(description="Queue MiniMax H3 Turbo t2v jobs from video-script clips.")
     p.add_argument("--filter", default="", help="Only clips whose relative path contains this string.")
+    p.add_argument(
+        "--works",
+        nargs="+",
+        default=[],
+        metavar="WORK",
+        help=(
+            "Run several works back to back, e.g. --works 人间隙/05-x 人间隙/06-y. "
+            "Each one gets its own subdirectory under --output-dir, its own concat and its own mail. "
+            "A work that fails is recorded and the next one still runs."
+        ),
+    )
     p.add_argument("--exclude", default="", help="Skip clips whose relative path contains this string.")
     p.add_argument("--megapixels", type=float, default=MEGAPIXELS)
     p.add_argument("--steps", type=int, default=STEPS)
@@ -1681,9 +1830,73 @@ def notify_label(filter_text: str, override: str) -> str:
     return parts[-1] if parts else "任务"
 
 
+def work_slug(work: str) -> str:
+    return work.replace("\\", "/").strip("/").replace("/", "-") or "任务"
+
+
+def run_batch(args) -> int:
+    """一批作品接着跑，每个作品各自的输出目录、各自的成片、各自的邮件。
+
+    一个作品塌了不许拖累后面的：记下来，接着跑下一个。
+    """
+    if args.concat_out:
+        raise SystemExit("--works 下每个作品各出一条成片，不要再给 --concat-out")
+    parent = (args.output_dir or Path.home() / "Downloads").expanduser().resolve()
+    failed: list[str] = []
+    for i, work in enumerate(args.works, 1):
+        slug = work_slug(work)
+        log(f"[BATCH] {i}/{len(args.works)} {work}")
+        one = argparse.Namespace(**vars(args))
+        one.works = []
+        one.filter = work
+        one.output_dir = parent / slug
+        one.concat_out = parent / f"{slug}-成片.mp4"
+        one.notify_label = ""
+        try:
+            if run_one(one) != 0:
+                failed.append(work)
+        except BaseException as e:
+            if isinstance(e, KeyboardInterrupt):
+                raise
+            log(f"[BATCH-FAIL] {work}: {e}")
+            failed.append(work)
+    done = [w for w in args.works if w not in failed]
+    log(f"[BATCH-DONE] 成 {len(done)}/{len(args.works)}" + (f"，失败 {failed}" if failed else ""))
+    summary = Notifier(label="批量", enabled=not args.no_notify)
+    summary.post(
+        f"批量 {len(done)}/{len(args.works)} 完成",
+        "\n".join(
+            [
+                f"目录：{parent}",
+                "",
+                *[f"成  {w}" for w in done],
+                *[f"败  {w}" for w in failed],
+                "",
+                "有遗留的作品由 agent 另发「遗留」邮件，这封只报成/败。",
+                "",
+                f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            ]
+        ),
+    )
+    summary.close()
+    return 1 if failed else 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    global MEGAPIXELS, STEPS, OUTPUT_DIR, CLIP_FILTER, CLIP_EXCLUDE, KEEP_RAW, NOTIFIER
     args = parse_args(argv)
+    acquire_run_lock()
+    try:
+        global PREFLIGHT_WARNINGS
+        PREFLIGHT_WARNINGS = collect_preflight(args)
+        if args.works:
+            return run_batch(args)
+        return run_one(args)
+    finally:
+        release_run_lock()
+
+
+def run_one(args) -> int:
+    global MEGAPIXELS, STEPS, OUTPUT_DIR, CLIP_FILTER, CLIP_EXCLUDE, KEEP_RAW, NOTIFIER
     MEGAPIXELS = args.megapixels
     STEPS = args.steps
     CLIP_FILTER = args.filter
@@ -1723,7 +1936,7 @@ def main(argv: list[str] | None = None) -> int:
 
         remember_run(progress, args)
         if args.fresh:
-            progress["done"] = {}
+            progress["done"] = drop_filtered(progress.get("done") or {})
         save_progress(progress)
         reusable = {} if args.fresh else {
             c["id"]: p for c in clips if (p := reusable_output(c, progress)) is not None
@@ -1735,7 +1948,8 @@ def main(argv: list[str] | None = None) -> int:
             f"reuse={len(reusable)} todo={todo}"
         )
         NOTIFIER.run_started(
-            len(clips), out_mp4, dest_dir, f"{MEGAPIXELS} MP · {STEPS} steps · {ASPECT}", len(reusable)
+            len(clips), out_mp4, dest_dir, f"{MEGAPIXELS} MP · {STEPS} steps · {ASPECT}", len(reusable),
+            warnings=PREFLIGHT_WARNINGS or None,
         )
 
         template_holder: list = []

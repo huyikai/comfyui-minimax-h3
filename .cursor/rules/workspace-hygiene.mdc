@@ -16,7 +16,7 @@ alwaysApply: true
 ## 硬性约束
 
 - 仓库根**不许**出现 `tmp_*.py`、`tmp_*.txt` 或 `tmp_*/`。要跑一次性分析，用下面的工具；工具不够用就**改工具**，不要另存一个 `xxx2.py`
-- `logs/` 只放运行状态：`video_script_progress.json`、`video_script_run.log`、`smtp.json`、`reference.json`。抽帧、音频片段不许往里塞
+- `logs/` 只放运行状态：`video_script_progress.json`、`video_script_run.log`、`smtp.json`、`reference.json`、`run.lock`、`batch-status.json`。抽帧、音频片段不许往里塞
 - 源片已经在 `video-script\<账号>\<NN-作品>\原片.mp4`，不要再往本仓库拷一份
 
 ## 工具

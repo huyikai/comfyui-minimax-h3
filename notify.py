@@ -221,7 +221,13 @@ class Notifier:
     # -- events -----------------------------------------------------------
 
     def run_started(
-        self, total: int, out_mp4: Path, output_dir: str, settings: str, reused: int = 0
+        self,
+        total: int,
+        out_mp4: Path,
+        output_dir: str,
+        settings: str,
+        reused: int = 0,
+        warnings: list[str] | None = None,
     ) -> None:
         self.total = total
         self.reused = reused
@@ -229,21 +235,22 @@ class Notifier:
         self.output_dir = output_dir
         self.started_at = datetime.now()
         self.done_at = []
+        body = [
+            f"开始时间：{self.started_at.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"片段数：{total}",
+            f"本次要生成：{total - reused} 条" + (f"，复用已有 {reused} 条" if reused else ""),
+            f"设定：{settings}",
+            "",
+            f"输出目录：{output_dir}",
+            f"成片将写到：{out_mp4}",
+            "",
+            "每完成一条会再发一封，最后一封附上成片。",
+        ]
+        if warnings:
+            body += ["", "开跑前："] + [f"  {w}" for w in warnings]
         self.post(
             f"{self.label} 开始 {reused}/{total}" + (f"（复用 {reused} 条）" if reused else ""),
-            "\n".join(
-                [
-                    f"开始时间：{self.started_at.strftime('%Y-%m-%d %H:%M:%S')}",
-                    f"片段数：{total}",
-                    f"本次要生成：{total - reused} 条" + (f"，复用已有 {reused} 条" if reused else ""),
-                    f"设定：{settings}",
-                    "",
-                    f"输出目录：{output_dir}",
-                    f"成片将写到：{out_mp4}",
-                    "",
-                    "每完成一条会再发一封，最后一封附上成片。",
-                ]
-            ),
+            "\n".join(body),
         )
 
     def clip_done(self, index: int, clip_id: str, dest: Path, info: dict) -> None:
@@ -354,3 +361,30 @@ class Notifier:
                 ]
             ),
         )
+
+
+def send_leftover(label: str, body: str) -> None:
+    """合剪成功那封不改。质检遗留由 agent 另发这一封，开头就是坏镜。"""
+    n = Notifier(label=label)
+    if not n.enabled:
+        raise SystemExit("没有 logs/smtp.json，遗留邮件发不出")
+    text = body.strip()
+    if "时间：" not in text:
+        text = text + "\n\n" + f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    n.post(f"{label} 遗留", text)
+    n.close()
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    p = argparse.ArgumentParser(description="Send a leftover-QC mail. Does not attach the mp4.")
+    p.add_argument("kind", choices=["leftover"])
+    p.add_argument("--label", required=True, help="作品名，例如 04-懦弱")
+    p.add_argument("--file", type=Path, help="正文文件；不给则读 stdin")
+    args = p.parse_args()
+    raw = args.file.read_text(encoding="utf-8") if args.file else sys.stdin.read()
+    if not raw.strip():
+        raise SystemExit("遗留邮件正文是空的")
+    send_leftover(args.label, raw)
