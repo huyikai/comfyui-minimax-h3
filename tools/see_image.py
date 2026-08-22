@@ -27,15 +27,14 @@ STRIP_HINT = """\
 PLAIN_HINT = "描述这张图里实际看见的：人、嘴、手、道具、文字、异常。只写看见的。"
 
 
-async def describe(path: Path, strip: bool, model, fallback: str | None) -> str:
-    from cursor_sdk import AsyncClient, SDKImage, UserMessage
+async def describe(client, path: Path, strip: bool, model, fallback: str | None) -> str:
+    from cursor_sdk import SDKImage, UserMessage
 
     hint = STRIP_HINT if strip else PLAIN_HINT
     msg = UserMessage(text=hint, images=[SDKImage.from_file(str(path))])
-    async with AsyncClient() as client:
-        result, used, err = await prompt_with_retry(
-            client, msg, model, fallback, str(path.parent),
-        )
+    result, used, err = await prompt_with_retry(
+        client, msg, model, fallback, str(path.parent),
+    )
     if err:
         return f"[see_image FAIL] {path.name}: {err}"
     tok = tokens_of(result) or (0, 0)
@@ -45,6 +44,8 @@ async def describe(path: Path, strip: bool, model, fallback: str | None) -> str:
 
 
 async def run(args) -> int:
+    from cursor_sdk import AsyncClient
+
     missing = [p for p in args.images if not p.is_file()]
     if missing:
         print("找不到：" + ", ".join(str(p) for p in missing), file=sys.stderr)
@@ -52,8 +53,9 @@ async def run(args) -> int:
     model = model_selection(args.model, args.param)
     fallback = args.fallback or None
     parts = []
-    for p in args.images:
-        parts.append(await describe(p, args.strip, model, fallback))
+    async with await AsyncClient.launch_bridge(workspace=str(Path.cwd())) as client:
+        for p in args.images:
+            parts.append(await describe(client, p, args.strip, model, fallback))
     print("\n".join(parts))
     return 0
 
