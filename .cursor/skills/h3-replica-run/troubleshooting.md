@@ -12,7 +12,10 @@
 | 输出 mp4 过小（< 80KB）| 视为失败，程序会重试。持续如此检查 prompt 是不是空的 |
 | 已有任务在跑 | `logs/run.lock` 里的 pid 还活着。同一时间只能一份。pid 已死会自动清锁续跑 |
 | 磁盘低于 2 GB | 硬挡，清盘再开。低于 10 GB 只在开始邮件里警告 |
-| 过夜渲染停在半条 | 电源计划会睡眠。开始邮件若写了「请改成从不」，把待机改掉再续跑；程序不改系统设置 |
+| 抖音 Fresh cookies / 下不了片 | 先 `tools/envcheck.py --url <链接> --mail`。Chrome 开着锁库会走卷影；新版 Chrome 的 App-Bound 加密可能 DPAPI 解不开，Cursor 内置浏览器那份常常能用。不要问人关 Chrome |
+| Chrome `Failed to decrypt with DPAPI` | 已知：Chrome 127+ App-Bound Encryption（yt-dlp#10927）。envcheck 会继续试 Cursor 内置浏览器，不要停 |
+| `Image captioning is temporarily unavailable` | `Read` 的转述挂了，图文件通常是好的。立刻 `tools/see_image.py --strip`，不要停下来等人看 |
+| 会话停在「接下来会开图」 | 违反铁律。初筛一结束同一回合接着开图 / 改脚本 / 重渲 / 合剪 |
 | `no clip-*.md matching` | `--filter` 写的是脚本库里的相对路径，不是 Downloads 的目录名 |
 | `no duration found in clip header` | clip 文件头缺 ``时长：`4.80s``，precheck 本该挡住 |
 | 断点续跑没复用已有分片 | `megapixels` / `steps` / `--output-dir` 三者任一跟上次不同就不会复用，这是设计如此 |

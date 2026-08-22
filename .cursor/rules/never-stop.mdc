@@ -1,0 +1,39 @@
+---
+description: 全自动铁律。用户不参与；唯一可中断的是环境检查失败。
+alwaysApply: true
+---
+
+# 铁律：全自动，不要停
+
+用户把活丢进来之后**不参与**。不要问、不要等人选、不要把「下一步」写成回合结尾然后干等。回合能接着干就接着干。
+
+## 唯一允许停下的地方
+
+**开跑前的环境检查失败。** 记进 `logs/batch-status.json`，发邮件，然后停。
+
+现在认的环境失败：
+
+1. 抖音 cookie：`tools/envcheck.py` 会试 Chrome（开着就走卷影拷贝）和 Cursor 内置浏览器（`Partitions/cursor-browser`），再加上 `logs/cookies.txt`。盘上解不开时，再用 MCP 打开抖音页做 `Network.getAllCookies` + `--import-cdp`。都没有才算失败
+2. `run_video_scripts.py` 已有的硬挡：输出盘 < 2 GB、ComfyUI 重启后仍连不上
+
+cookie 检查用 `tools/envcheck.py --url <链接> --mail`。Chrome 开着锁库就共享读拷出来，**不要**让人关浏览器。Cursor 内置浏览器没盘上可用的 cookie 时，用 MCP 打开抖音页、`Network.getAllCookies`、`--import-cdp` 再试一次。两边都没有才算失败。
+
+其它任何情况都**不是**中断：记履历、该跳过的占号跳过、继续下一条 / 下一步。
+
+## 上一条没成片，不准开下一条
+
+「完成」= 第 11 步邮件发出（成片附件那封）。分片渲完、自检中、合剪中都不算完。
+
+用户说「等正在跑的完成再做这条」＝ 等到成片邮件，不是等到 0.4 渲完。新链接先占号，阶段写成 `排队`，不取材、不抢显卡。
+
+一次丢进来的多条仍按 `h3-replica-run` 的批量走（那是同一批授权）。
+
+## 「亲自看」不是用户看
+
+`qc_agent` 点名之后，**主 agent** 必须自己看那张横条再改脚本。用户不看图、不拍板、不回「继续」。
+
+读图顺序：`Read` 打开 jpg → 若返回 captioning unavailable / 看不见像素，立刻 `tools/see_image.py --strip <横条>`（Cursor SDK，不经 captioning 中转）→ 再不行才起只读子 agent。三条都失败：把 `qc_agent`「它看见的」当证据继续改，记履历，**不要停下来等人看**。
+
+## 回合不许停在「接下来会…」
+
+后台任务结束、初筛出了点名、脚本改完，同一回合接着开图 / 重渲 / 合剪。进度可以写进履历和 `batch-status.json`，但写完必须继续执行，不能把执行权交回用户。

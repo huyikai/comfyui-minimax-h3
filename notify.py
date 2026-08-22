@@ -375,16 +375,31 @@ def send_leftover(label: str, body: str) -> None:
     n.close()
 
 
+def send_env_fail(label: str, body: str) -> None:
+    """环境检查失败：工作流停在这里。开头就是失败原因。"""
+    n = Notifier(label=label)
+    if not n.enabled:
+        raise SystemExit("没有 logs/smtp.json，环境检查邮件发不出")
+    text = body.strip()
+    if "时间：" not in text:
+        text = text + "\n\n" + f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    n.post(f"{label} 环境检查失败 · 已停止", text)
+    n.close()
+
+
 if __name__ == "__main__":
     import argparse
     import sys
 
-    p = argparse.ArgumentParser(description="Send a leftover-QC mail. Does not attach the mp4.")
-    p.add_argument("kind", choices=["leftover"])
+    p = argparse.ArgumentParser(description="Send leftover or environment-fail mail. No mp4.")
+    p.add_argument("kind", choices=["leftover", "env"])
     p.add_argument("--label", required=True, help="作品名，例如 04-懦弱")
     p.add_argument("--file", type=Path, help="正文文件；不给则读 stdin")
     args = p.parse_args()
     raw = args.file.read_text(encoding="utf-8") if args.file else sys.stdin.read()
     if not raw.strip():
-        raise SystemExit("遗留邮件正文是空的")
-    send_leftover(args.label, raw)
+        raise SystemExit("邮件正文是空的")
+    if args.kind == "env":
+        send_env_fail(args.label, raw)
+    else:
+        send_leftover(args.label, raw)

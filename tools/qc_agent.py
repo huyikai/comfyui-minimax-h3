@@ -2,7 +2,7 @@ r"""让 agent 读横条替你做分片级自检的初筛。
 
 一条 clip 一个 run，把 qc_frames.py --dir 出的三帧横条连同该 clip 的中文脚本一起发过去，
 按 finish-video 的四项出「现象清单」。**只筛不判**：跑在 plan 模式下，agent 改不了文件，
-也被要求不给改法。被标出来的那几条，主 agent 亲自看过再动手。
+也被要求不给改法。被标出来的那几条，主 agent 自己开图再动手（Read 失败则 see_image.py）。不是问用户。
 
     .\.venv\Scripts\python.exe tools\qc_agent.py --work "人间隙/04-懦弱" --limit 3
 
@@ -221,7 +221,7 @@ async def run(args) -> int:
              f"失败 {len(errs)} 条 · 格式不对 {len(bad)} 条",
              f"token 入 {t_in} 出 {t_out}（每条均入 {t_in // max(len(rows), 1)}）"
              f" · 累计 {secs:.0f}s", "",
-             "点名的排在前面。**这些要人亲自看过再动手。**", ""]
+             "点名的排在前面。**主 agent 自己开图再动手，不要问用户。**", ""]
     for r in rows:
         head = f"## {r.get('seg','?')} {r.get('clip') or r.get('strip')}"
         if r.get("fell_back"):
@@ -248,7 +248,7 @@ async def run(args) -> int:
     print(f"token 入 {t_in} 出 {t_out}（每条均入 {t_in // max(len(rows), 1)}）· 累计 {secs:.0f}s")
     print(f"点名 {len(hard_rows)} 条，拿不准 {len(soft_rows)} 条，"
           f"格式不对 {len(bad)} 条，跑失败 {len(errs)} 条。")
-    print("**点名的那些要你亲自看过再动手。**")
+    print("**点名的那些主 agent 自己开图再动手（Read 失败则 tools/see_image.py --strip）。**")
     return 0
 
 
