@@ -2,6 +2,7 @@
 """开跑前的静态检查：脚本能不能被生成程序读懂、有没有会烧字幕的写法。
 
 用 run_video_scripts 自己的解析函数，所以这里过了，那边就一定读得出来。
+有 timeline.json 时还会对「点过名的物件有没有写进对照」和「开场是不是结果态」。
 
     python tools/precheck.py --work 人间隙/04-懦弱
     python tools/precheck.py --work 人间隙/04-懦弱 --strict   # 警告也算不过
@@ -18,6 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import run_video_scripts as rvs  # noqa: E402
 from notify import clip_label  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from event_chain import check_work  # noqa: E402
 
 # H3 会把引号里的字画进画面，这些词还会直接引出字幕。
 BANNED = ("subtitle", "caption", "burned-in", "chinese text overlay", "text overlay")
@@ -224,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--work", required=True, help="脚本库里的相对路径，例如 人间隙/04-懦弱")
     p.add_argument("--strict", action="store_true", help="把警告也当成不通过")
+    p.add_argument("--skip-timeline", action="store_true", help="不对照 timeline.json")
     args = p.parse_args(argv)
 
     rvs.CLIP_FILTER = args.work
@@ -279,6 +284,11 @@ def main(argv: list[str] | None = None) -> int:
         errors.append(f"缺作品总表 {work_ov}")
     elif not rvs.extract_end_card(work_ov.read_text(encoding="utf-8")):
         warnings.append("作品总表里没有片尾字卡")
+
+    if not args.skip_timeline:
+        te, tw = check_work(args.work, ready)
+        errors.extend(te)
+        warnings.extend(tw)
 
     print(f"[SCAN] {len(clips)} 条 clip，生成总时长 {total:.2f}s（不含片尾）")
     if speakers:

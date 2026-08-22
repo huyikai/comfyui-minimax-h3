@@ -27,6 +27,7 @@ alwaysApply: true
 | `tools\see_image.py --strip <横条>` | `Read` 读图失败时的 SDK 兜底 |
 | `tools\read_source.py <片> --work 人间隙/NN-名 --ocr` | 只做机械抽帧/硬切/OCR（默认 1 秒）。写稿读片请用下一行 |
 | `tools\source_agent.py <片> --work 人间隙/NN-名` | 0.5 秒抽帧 + OCR + 转写 + SDK 按窗读图，出 `source/timeline.json` |
+| `tools\precheck.py --work 人间隙/NN-名` | 格式 + timeline 事件链（点名物件、开场结果态） |
 | `tools\qc_frames.py --dir <分片目录> --work 人间隙/NN-名` | 每条 clip 抽三帧拼一张横条，逐段自检用 |
 | `tools\qc_frames.py <成片> --work 人间隙/NN-名 --at 1.2,4 --tail` | 成片抽检帧 |
 | `tools\qc_agent.py --work 人间隙/NN-名` | 分片横条的 SDK 初筛 |

@@ -97,19 +97,22 @@ yt-dlp --cookies logs/cookies.txt --write-all-thumbnails --skip-download <链接
 .\.venv\Scripts\python.exe tools\precheck.py --work "人间隙/NN-作品"
 ```
 
-`[FAIL]` 全部改完再往下。它替你机械判定的有：读不出时长、汉字漏在 `<d>` 外面、禁用词、缺 Identity lock 或 `Speaking assignment`、锁句跨条不一致、节拍没从 0 铺满到时长、同一句台词出现在两条、段总表对白与 clip 对不上、段总表缺表。这些到了生成阶段修一次要多花几十分钟。
+`[FAIL]` 全部改完再往下。它替你机械判定的有：读不出时长、汉字漏在 `<d>` 外面、禁用词、缺 Identity lock 或 `Speaking assignment`、锁句跨条不一致、节拍没从 0 铺满到时长、同一句台词出现在两条、段总表对白与 clip 对不上、段总表缺表、**timeline 点过名的物件对照/英文里没有、开场节拍写成 already holding**。这些到了生成阶段修一次要多花几十分钟。
+
+没有 `.scratch/<作品>/source/timeline.json` 时事件链对照会 `[WARN]` 跳过，不当整单失败。有时间线时 `[FAIL]` 必须改完再进第 5 步。
 
 还要**主 agent 自己读那张 `[SPEAK]` 表**：每句对白和它挂在谁身上并排列着，逐句问「这句话该由谁说」。不要把表丢给用户。
 
 ## 4.5 故事逻辑复核（主 agent，不是第一次审）
 
-写稿技能已经要求落盘前过八项。这里是**主 agent 自己再过一遍**，因为写稿子 agent 说过了不算过。`precheck` 仍然只认格式。
+写稿技能已经要求落盘前过八项。这里是**主 agent 自己再过一遍**，因为写稿子 agent 说过了不算过。`precheck` 认格式，也认 timeline 点名物件和开场结果态；仍认不出「三十岁喊妈妈」。
 
 按段起只读子 agent，一段一个，一条消息里并行发：
 
 ```text
 读 D:\develop\video-script\人间隙\NN-作品\03-段名\ 下的 00-overview.md 和全部 clip-*.md。
-不看画面，只读脚本，找逻辑说不通的地方：
+同时读 D:\develop\minmaxH3\.scratch\人间隙-NN-作品\source\timeline.json：只取各 clip「全局时间（源片）」覆盖到的 ticks / 它看见的。
+不看画面，只读脚本 + 这段时间线，找逻辑说不通的地方：
 1 每句 <d> 的内容该由谁说（称谓、通报的信息、祈使对象、评价方向），与 Speaking assignment 对不对得上
 2 因果链：上一条的结果是不是下一条的前提，中间缺不缺一拍
 3 这个年龄、这个身份的人做得到这件事吗

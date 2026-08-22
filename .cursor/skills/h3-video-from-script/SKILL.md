@@ -87,7 +87,7 @@ disable-model-invocation: true
 
 ## 5.5 故事逻辑审读
 
-`precheck` 只认格式，认不出「三十岁的人喊妈妈」为什么荒谬。**生成前**按段起子 agent 通读段总表和全部 clip，检查项和落笔分级照 `finish-video` 的「故事逻辑审读」「改还是记」两节走，子 agent 报的提示词见 [h3-replica-run](../h3-replica-run/SKILL.md) 第 4.5 步。
+`precheck` 认格式，也认 timeline 点名物件和开场结果态；仍认不出「三十岁的人喊妈妈」为什么荒谬。**生成前**按段起子 agent 通读段总表和全部 clip，检查项和落笔分级照 `finish-video` 的「故事逻辑审读」「改还是记」两节走，子 agent 报的提示词见 [h3-replica-run](../h3-replica-run/SKILL.md) 第 4.5 步。
 
 用户自带的稿子逻辑漏洞通常比复刻稿多。第 2 步给优化方案时可以把故事漏洞列进去；用户说做片之后按现稿跑——**执行错误自己改，要动设定才能圆的记进履历继续跑，不要中途停下来问，也不要替他补设定。**
 
